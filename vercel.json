@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/index.js", "use": "@vercel/node" }
-  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index.js" }
+    { "source": "/download-notecard", "destination": "/api/index.js" },
+    { "source": "/request-notecard", "destination": "/api/index.js" }
   ]
 }
