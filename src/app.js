@@ -206,6 +206,7 @@ if (!process.env.VERCEL && !process.env.LAMBDA_TASK_ROOT) {
 }
 
 export { app };
+export default app;
 
 process.on('SIGINT', () => {
   logger.info('Exit.');
