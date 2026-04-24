@@ -148,7 +148,7 @@ async function getOrderMessageContent(orderId) {
 }
 
 // Serve static files from the 'public/demo-frontend' directory
-app.use('/demo-frontend', express.static(path.join(__dirname, 'public/demo-frontend')));
+app.use(express.static(path.join(__dirname, 'public/demo-frontend')));
 
 // Route to send SVG as a file download
 app.get('/download-notecard', async (req, res) => {
@@ -242,9 +242,6 @@ app.get('/request-notecard', async (req, res) => {
   `);
 });
 
-app.get('/', (req, res) => {
-  res.send('Miraco SVG Exporter');
-});
 
 // Only start the HTTP server when running locally (not in serverless/Netlify)
 if (!process.env.VERCEL && !process.env.NETLIFY && !process.env.LAMBDA_TASK_ROOT) {
