@@ -1,0 +1,24 @@
+services:
+  app:
+    image: "registry.digitalocean.com/elias-interconnect-cr1/miraco-svg-exporter:${EI_TAG}"
+    platform: "linux/amd64"
+    tty: true
+    build:
+      context: "."
+      dockerfile: devops/app.Dockerfile
+      platforms:
+        - "linux/amd64"
+    environment:
+      - COMPOSE_PROJECT_NAME=miraco-svg-exporter
+    env_file:
+      - .env
+    command: ["npm", "run", "app"]
+    volumes:
+      - ${PWD}/src:/app
+    networks:
+      - miraco-svg-exporter
+    ports:
+      - 3000:3000
+
+networks:
+  miraco-svg-exporter: {}

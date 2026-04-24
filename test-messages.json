@@ -1,0 +1,15 @@
+// 1008
+{
+  "messageTo": "To a 45-character Person's Name Long w Comma,",
+  "messageText": "This is a 189-character string. It will only be split between words. It will be on a maximum of 4 lines. If it contains <html>, that will be removed. If longer than 180, will be truncated.",
+  "messageSignOff": "Sincerely Very Much Yours Truly Long w Comma,",
+  "messageFrom": "Jeremy A. R. Cappabianca, III, Esq. CBE, SPHR"
+}
+
+// 1007
+{
+  "messageTo": "Dear Jen,",
+  "messageText": "Wow, what a long, crazy robot journey. Can't wait to see this card printed perfectly on Miraco's beautiful cardstock.",
+  "messageSignOff": "Sincerely,",
+  "messageFrom": "Sam"
+}

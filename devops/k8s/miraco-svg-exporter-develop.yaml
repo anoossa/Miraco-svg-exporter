@@ -1,0 +1,109 @@
+---
+# Source: miraco-svg-exporter-develop:/devops/k8s/miraco-svg-exporter-develop.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: miraco-svg-exporter-develop-configmap
+  namespace: default
+  labels:
+    app.kubernetes.io/name: miraco-svg-exporter-develop
+    app.kubernetes.io/instance: miraco-svg-exporter-develop
+    app: miraco-svg-exporter-develop
+    release: "miraco-svg-exporter-develop-20231009"
+data:
+  EI_TAG: "develop"
+  PROJECT_ID: ""
+  CREDENTIAL_JSON: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: miraco-svg-exporter-develop
+  labels:
+    app: miraco-svg-exporter-develop
+    ei-id: miraco-svg-exporter-develop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: miraco-svg-exporter-develop
+  template:
+    metadata:
+      labels:
+        app: miraco-svg-exporter-develop
+        ei-id: miraco-svg-exporter-develop
+    spec:
+      securityContext:
+        fsGroup: 1001
+      restartPolicy: Always
+      containers:
+        - name: miraco-svg-exporter-develop
+          image: registry.digitalocean.com/elias-interconnect-cr1/miraco-svg-exporter:develop
+          imagePullPolicy: "Always"
+          securityContext:
+            runAsUser: 1001
+          envFrom:
+          - configMapRef:
+              name: miraco-svg-exporter-develop-configmap
+
+---
+# Source: miraco-svg-exporter-develop:/devops/k8s/miraco-svg-exporter-develop.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: miraco-svg-exporter-develop-job
+  labels:
+    app: miraco-svg-exporter-develop
+    ei-id: miraco-svg-exporter-develop-job
+spec:
+  template:
+    metadata:
+      labels:
+        app: miraco-svg-exporter-develop
+        ei-id: miraco-svg-exporter-develop-job
+    spec:
+      securityContext:
+        fsGroup: 1001
+      restartPolicy: "OnFailure"
+      containers:
+        - name: miraco-svg-exporter-develop
+          image: registry.digitalocean.com/elias-interconnect-cr1/miraco-svg-exporter:develop
+          imagePullPolicy: "Always"
+          securityContext:
+            runAsUser: 1001
+          envFrom:
+          - configMapRef:
+              name: miraco-svg-exporter-develop-configmap
+  backoffLimit: 2
+---
+# Source: miraco-svg-exporter-develop:/devops/k8s/miraco-svg-exporter-develop.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: miraco-svg-exporter-develop-cronjob
+  labels:
+    app: miraco-svg-exporter-develop
+    ei-id: miraco-svg-exporter-develop-cronjob
+spec:
+  schedule: "0 15 * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: miraco-svg-exporter-develop
+            ei-id: miraco-svg-exporter-develop-job
+        spec:
+          securityContext:
+            fsGroup: 1001
+          restartPolicy: "OnFailure"
+          containers:
+            - name: miraco-svg-exporter-develop
+              image: registry.digitalocean.com/elias-interconnect-cr1/miraco-svg-exporter:develop
+              imagePullPolicy: "Always"
+              securityContext:
+                runAsUser: 1001
+              envFrom:
+              - configMapRef:
+                  name: miraco-svg-exporter-develop-configmap
+      backoffLimit: 2

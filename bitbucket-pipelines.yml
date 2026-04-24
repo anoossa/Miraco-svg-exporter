@@ -1,0 +1,97 @@
+# from template docker-push
+
+image: atlassian/default-image:4
+
+definitions:
+  steps:
+    - step: &build-test
+        name: Build
+        script:
+          # save secrets because Atlassian needs to improve their pipelines
+          - chmod +x ./devops/secrets.sh
+          - ./devops/secrets.sh save DO_TOKEN ${DO_TOKEN}
+          - ./devops/secrets.sh save DO_CLUSTER ${DO_CLUSTER}
+          - ./devops/secrets.sh save CR_PREFIX ${CR_PREFIX}
+          - ./devops/secrets.sh save IMAGE_NAME ${IMAGE_NAME}
+          #
+          # default vars
+          # $BITBUCKET_BRANCH
+          #
+          # Brighton Vars
+          - FQN_APP="${CR_PREFIX}${IMAGE_NAME}"
+          #
+          # Build and save
+          - docker build --no-cache --file devops/app.Dockerfile -t "${FQN_APP}:${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}" ./
+          - docker save "${FQN_APP}:${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}" --output "${IMAGE_NAME}-${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}.tar"
+        services:
+          - docker
+        caches:
+          - docker
+        artifacts:
+          - "*.tar"
+          - "devops/*"
+    - step: &release-run
+        name: Release (Push Images) & Run (Patch k8s)
+        trigger: manual
+        script:
+          # load saved secrets because Atlassian needs to improve their pipelines
+          - source ./devops/secrets.txt
+          #
+          # default vars
+          # $BITBUCKET_BRANCH
+          #
+          # Brighton Vars
+          - FQN_APP="${CR_PREFIX}${IMAGE_NAME}"
+          #
+          # Install doctl
+          - echo "Install doctl..."
+          - wget https://github.com/digitalocean/doctl/releases/download/v1.94.0/doctl-1.94.0-linux-amd64.tar.gz
+          - tar xf doctl-1.94.0-linux-amd64.tar.gz
+          - mv ./doctl /usr/local/bin
+          - which doctl
+          - echo "Done."
+          #
+          - echo "Auth to do..."
+          - doctl auth init -t ${DO_TOKEN}
+          - doctl registry login --expiry-seconds 600
+          - echo "Done."
+          #
+          - echo "Push images..."
+          - docker load --input "${IMAGE_NAME}-${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}.tar"
+          - docker tag "${FQN_APP}:${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}" "${FQN_APP}:${BITBUCKET_BRANCH}"
+          - docker tag "${FQN_APP}:${BITBUCKET_BRANCH}-${BITBUCKET_COMMIT}" "${FQN_APP}:${BITBUCKET_COMMIT}"
+          - docker push -a "${FQN_APP}"
+          #
+          # Install kubectl
+          - echo "Install kubectl..."
+          - curl -LO https://dl.k8s.io/release/v1.27.2/bin/linux/amd64/kubectl
+          - chmod +x ./kubectl
+          - mv ./kubectl /usr/local/bin
+          - which kubectl
+          - echo "Done."
+          #
+          # Connect to cluster
+          - echo "Connect to cluser..."
+          - doctl kubernetes cluster kubeconfig save ${DO_CLUSTER}
+          #
+          # Rollout changes
+          - chmod +x ./devops/generate-patch-deployment.sh
+          - ./devops/generate-patch-deployment.sh "${FQN_APP}" "${BITBUCKET_COMMIT}" > ./patch.json
+          - kubectl patch deployment/${IMAGE_NAME}-${BITBUCKET_BRANCH}-deployment --type='json' --patch-file='patch.json'
+          - echo "Done."
+          #
+        services:
+          - docker
+
+pipelines:
+  branches:
+    develop:
+      - step:
+          <<: *build-test
+          deployment: develop
+      - step: *release-run
+    main:
+      - step:
+          <<: *build-test
+          deployment: main
+      - step: *release-run

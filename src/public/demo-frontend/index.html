@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customizable Image Text</title>
+<style>
+html, body {
+    height: 100%;
+    margin: 0;
+}
+body {
+    display: flex;
+    justify-content: center; /* Center horizontally */
+    text-align: center;     /* Optional: Center text inside the body */
+}
+
+.main-content {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+}
+
+.image-container {
+    position: relative;
+    width: 100%;
+}
+
+#hero-image {
+    width: 100%;
+    height: auto;
+}
+
+.image-text {
+    position: absolute;
+    color: #000;
+    font-family: 'Great Vibes', cursive; /* Example script font */
+    font-size: 16px;
+    padding: 5px;
+    width: 300px;
+    text-align: left; /* Align text to the left */
+}
+
+.text-to {
+    top: 20px;
+    left: 50px;
+}
+
+.text-message {
+    top: 100px;
+    left: 50px;
+    width: 70%; /* Adjust as needed */
+}
+
+.text-signoff {
+    top: 270px;
+    left: 50px;
+}
+
+.text-from {
+    top: 300px;
+    left: 50px;
+}
+
+.input-fields input {
+    display: block;
+    margin: 10px auto;
+    padding: 10px;
+    width: 90%;
+}
+</style>
+</head>
+<body>
+<div class="main-content">
+    <div class="image-container">
+        <img src="miraco-cardstock-01.jpg" alt="Hero Image" id="hero-image">
+        <div id="text-to" class="image-text text-to">To</div>
+        <div id="text-message" class="image-text text-message">Message</div>
+        <div id="text-signoff" class="image-text text-signoff">Sincerely,</div>
+        <div id="text-from" class="image-text text-from">From</div>
+    </div>
+    <div class="input-fields">
+        <input type="text" placeholder="To" oninput="updateText('text-to', this.value)">
+        <input type="text" placeholder="Message" oninput="updateText('text-message', this.value)">
+        <input type="text" placeholder="Sign-Off" oninput="updateText('text-signoff', this.value)">
+        <input type="text" placeholder="From" oninput="updateText('text-from', this.value)">
+    </div>
+</div>
+<script>
+function updateText(id, value) {
+    document.getElementById(id).innerText = value;
+}
+</script>
+</body>
+</html>
