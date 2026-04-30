@@ -120,12 +120,7 @@ async function replaceTemplateContents(
 }
 
 async function getTemplate(filename) {
-  // In Vercel/Lambda the project root is the working directory
-  const basePath =
-    process.env.VERCEL || process.env.LAMBDA_TASK_ROOT
-      ? path.join(process.cwd(), "src")
-      : __dirname;
-  return fs.readFile(path.join(basePath, filename), "utf-8");
+  return fs.readFile(path.join(__dirname, filename), "utf-8");
 }
 
 async function getOrderMessageContent(orderName) {
