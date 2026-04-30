@@ -142,7 +142,7 @@ async function getOrderMessageContent(orderName) {
 
 app.get("/auth", (req, res) => {
   const shop = req.query.shop || shopifyInstance;
-  const redirectUri = `${req.protocol}://${req.get("host")}/auth/callback`;
+  const redirectUri = process.env.SHOPIFY_REDIRECT_URI || `${req.protocol}://${req.get("host")}/auth/callback`;
   const scopes = "read_orders";
   const state = crypto.randomBytes(16).toString("hex");
 
