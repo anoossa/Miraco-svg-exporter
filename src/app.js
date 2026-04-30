@@ -51,8 +51,13 @@ async function getOrder(orderName) {
         }`,
         variables: { query: `name:${orderName}` },
       },
-      { headers: { "X-Shopify-Access-Token": shopifyApiKey, "Content-Type": "application/json" } },
+      {
+        headers: { "X-Shopify-Access-Token": shopifyApiKey, "Content-Type": "application/json" },
+        timeout: 8000,
+      },
     );
+
+    logger.info({ graphqlResponse: JSON.stringify(res.data) });
 
     const order = res?.data?.data?.orders?.edges?.[0]?.node;
     if (order?.note) {
@@ -60,7 +65,7 @@ async function getOrder(orderName) {
     }
     return false;
   } catch (error) {
-    logger.error(error);
+    logger.error({ message: error.message, response: error.response?.data });
     return false;
   }
 }
@@ -201,31 +206,36 @@ app.get("/auth/callback", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.get("/download-notecard", async (req, res) => {
-  const orderName = req.query.order_name || req.query.order_id || false;
+  try {
+    const orderName = req.query.order_name || req.query.order_id || false;
 
-  if (orderName) {
-    const orderMessageContent = await getOrderMessageContent(orderName);
-    if (orderMessageContent) {
-      const templateContents = await getTemplate(templateFilename);
-      const svgContent = await replaceTemplateContents(
-        templateContents,
-        orderMessageContent.messageTo,
-        orderMessageContent.messageText,
-        orderMessageContent.messageSignOff,
-        orderMessageContent.messageFrom,
-      );
+    if (orderName) {
+      const orderMessageContent = await getOrderMessageContent(orderName);
+      if (orderMessageContent) {
+        const templateContents = await getTemplate(templateFilename);
+        const svgContent = await replaceTemplateContents(
+          templateContents,
+          orderMessageContent.messageTo,
+          orderMessageContent.messageText,
+          orderMessageContent.messageSignOff,
+          orderMessageContent.messageFrom,
+        );
 
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="miraco-notecard-order-${orderName}.svg"`,
-      );
-      res.setHeader("Content-Type", "image/svg+xml");
-      res.send(svgContent);
-      return;
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="miraco-notecard-order-${orderName}.svg"`,
+        );
+        res.setHeader("Content-Type", "image/svg+xml");
+        res.send(svgContent);
+        return;
+      }
     }
-  }
 
-  res.status(404).send("404 Not Found - Order or order note was not found.");
+    res.status(404).send("404 Not Found - Order or order note was not found.");
+  } catch (error) {
+    logger.error({ message: error.message, stack: error.stack });
+    res.status(500).send(`Server error: ${error.message}`);
+  }
 });
 
 app.get("/request-notecard", async (req, res) => {
