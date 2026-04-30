@@ -1,18 +1,19 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-import winston from 'winston';
-import axios from 'axios';
-import sanitizeHtml from 'sanitize-html';
-import { promises as fs } from 'fs';
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import winston from "winston";
+import axios from "axios";
+import sanitizeHtml from "sanitize-html";
+import { promises as fs } from "fs";
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 const { combine, timestamp, json, errors } = winston.format;
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: "info",
   format: combine(errors({ stack: true }), timestamp(), json()),
   transports: [new winston.transports.Console()],
 });
@@ -23,22 +24,26 @@ const __dirname = path.dirname(__filename);
 const shopifyInstance = process.env.SHOPIFY_INSTANCE;
 const shopifyApiKey = process.env.SHOPIFY_API_KEY;
 const shopifyApiVersion = process.env.SHOPIFY_API_VERSION;
+const shopifyClientId = process.env.SHOPIFY_CLIENT_ID;
+const shopifyClientSecret = process.env.SHOPIFY_CLIENT_SECRET;
 const templateFilename = process.env.TEMPLATE_FILENAME;
 
 const app = express();
 const port = 3000;
 
 // Serve static files — from root /public in production, from ../public locally
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, "../public")));
 
 async function getOrder(orderName) {
   try {
     const res = await axios.get(
       `https://${shopifyInstance}.myshopify.com/admin/api/${shopifyApiVersion}/orders.json?name=${orderName}&status=any`,
-      { headers: { 'X-Shopify-Access-Token': shopifyApiKey } }
+      { headers: { "X-Shopify-Access-Token": shopifyApiKey } },
     );
-    if (res?.data?.orders?.length && res.data.orders[0]['note']) {
-      return JSON.parse(res.data.orders[0]['note']);
+
+    console.log(res);
+    if (res?.data?.orders?.length && res.data.orders[0]["note"]) {
+      return JSON.parse(res.data.orders[0]["note"]);
     }
     return false;
   } catch (error) {
@@ -49,13 +54,13 @@ async function getOrder(orderName) {
 
 async function truncateAndFormatString(input) {
   let truncated = input.length > 185 ? input.slice(0, 185) : input;
-  let words = truncated.split(' ');
+  let words = truncated.split(" ");
   let lines = [];
-  let currentLine = '';
+  let currentLine = "";
 
-  words.forEach(word => {
+  words.forEach((word) => {
     if ((currentLine + word).length <= 50) {
-      currentLine += (currentLine ? ' ' : '') + word;
+      currentLine += (currentLine ? " " : "") + word;
     } else {
       lines.push(currentLine);
       currentLine = word;
@@ -65,7 +70,7 @@ async function truncateAndFormatString(input) {
   if (currentLine) lines.push(currentLine);
 
   lines = lines.slice(0, 4);
-  while (lines.length < 4) lines.push('');
+  while (lines.length < 4) lines.push("");
 
   return lines;
 }
@@ -74,11 +79,20 @@ async function truncateText(input) {
   return input.slice(0, 48);
 }
 
-async function replaceTemplateContents(templateContents, messageTo, messageText, messageSignOff, messageFrom) {
+async function replaceTemplateContents(
+  templateContents,
+  messageTo,
+  messageText,
+  messageSignOff,
+  messageFrom,
+) {
   let out = templateContents.replace(/%%messageTo%%/g, messageTo);
 
   for (let i = 1; i <= 4; i++) {
-    out = out.replace(new RegExp(`%%messageText${i}%%`, 'g'), messageText[i - 1] || '');
+    out = out.replace(
+      new RegExp(`%%messageText${i}%%`, "g"),
+      messageText[i - 1] || "",
+    );
   }
 
   out = out.replace(/%%messageSignOff%%/g, messageSignOff);
@@ -89,29 +103,91 @@ async function replaceTemplateContents(templateContents, messageTo, messageText,
 
 async function getTemplate(filename) {
   // In Vercel/Lambda the project root is the working directory
-  const basePath = process.env.VERCEL || process.env.LAMBDA_TASK_ROOT
-    ? path.join(process.cwd(), 'src')
-    : __dirname;
-  return fs.readFile(path.join(basePath, filename), 'utf-8');
+  const basePath =
+    process.env.VERCEL || process.env.LAMBDA_TASK_ROOT
+      ? path.join(process.cwd(), "src")
+      : __dirname;
+  return fs.readFile(path.join(basePath, filename), "utf-8");
 }
 
 async function getOrderMessageContent(orderName) {
-  logger.info('Getting order data...');
+  logger.info("Getting order data...");
   const orderNote = await getOrder(orderName);
   if (!orderNote) return false;
 
-  logger.info('Cleansing data...');
+  logger.info("Cleansing data...");
   const messageText = await truncateAndFormatString(orderNote.messageText);
 
   return {
     messageTo: sanitizeHtml(await truncateText(orderNote.messageTo)),
-    messageText: messageText.map(line => sanitizeHtml(line)),
+    messageText: messageText.map((line) => sanitizeHtml(line)),
     messageSignOff: sanitizeHtml(await truncateText(orderNote.messageSignOff)),
     messageFrom: sanitizeHtml(await truncateText(orderNote.messageFrom)),
   };
 }
 
-app.get('/download-notecard', async (req, res) => {
+// ── Shopify OAuth (run once to get access token) ──────────────────────────────
+
+app.get("/auth", (req, res) => {
+  const shop = req.query.shop || `${shopifyInstance}.myshopify.com`;
+  const redirectUri = `${req.protocol}://${req.get("host")}/auth/callback`;
+  const scopes = "read_orders";
+  const state = crypto.randomBytes(16).toString("hex");
+
+  res.cookie("shopify_oauth_state", state, { httpOnly: true });
+  const authUrl =
+    `https://${shop}/admin/oauth/authorize` +
+    `?client_id=${shopifyClientId}` +
+    `&scope=${scopes}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${state}`;
+
+  res.redirect(authUrl);
+});
+
+app.get("/auth/callback", async (req, res) => {
+  const { code, state, shop, hmac } = req.query;
+
+  // Validate HMAC
+  const params = Object.fromEntries(
+    Object.entries(req.query).filter(([k]) => k !== "hmac"),
+  );
+  const message = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+  const digest = crypto
+    .createHmac("sha256", shopifyClientSecret)
+    .update(message)
+    .digest("hex");
+
+  if (digest !== hmac) {
+    return res.status(400).send("Invalid HMAC — request could not be verified.");
+  }
+
+  try {
+    const tokenRes = await axios.post(
+      `https://${shop}/admin/oauth/access_token`,
+      { client_id: shopifyClientId, client_secret: shopifyClientSecret, code },
+    );
+    const accessToken = tokenRes.data.access_token;
+    res.send(`
+      <html><body>
+        <h2>Access token obtained successfully!</h2>
+        <p>Add this to your <code>.env</code> as <code>SHOPIFY_API_KEY</code>:</p>
+        <pre style="background:#f4f4f4;padding:12px;font-size:1.1rem">${accessToken}</pre>
+        <p>Then restart the app — you won't need to do this again.</p>
+      </body></html>
+    `);
+  } catch (error) {
+    logger.error(error);
+    res.status(500).send("Failed to exchange code for access token.");
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.get("/download-notecard", async (req, res) => {
   const orderName = req.query.order_name || req.query.order_id || false;
 
   if (orderName) {
@@ -123,20 +199,23 @@ app.get('/download-notecard', async (req, res) => {
         orderMessageContent.messageTo,
         orderMessageContent.messageText,
         orderMessageContent.messageSignOff,
-        orderMessageContent.messageFrom
+        orderMessageContent.messageFrom,
       );
 
-      res.setHeader('Content-Disposition', `attachment; filename="miraco-notecard-order-${orderName}.svg"`);
-      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="miraco-notecard-order-${orderName}.svg"`,
+      );
+      res.setHeader("Content-Type", "image/svg+xml");
       res.send(svgContent);
       return;
     }
   }
 
-  res.status(404).send('404 Not Found - Order or order note was not found.');
+  res.status(404).send("404 Not Found - Order or order note was not found.");
 });
 
-app.get('/request-notecard', async (req, res) => {
+app.get("/request-notecard", async (req, res) => {
   const orderName = req.query.order_name || req.query.order_id || false;
 
   if (orderName) {
@@ -200,7 +279,7 @@ app.get('/request-notecard', async (req, res) => {
 });
 
 if (!process.env.VERCEL && !process.env.LAMBDA_TASK_ROOT) {
-  app.listen(port, '0.0.0.0', () => {
+  app.listen(port, "0.0.0.0", () => {
     console.log(`Server running at http://0.0.0.0:${port}/`);
   });
 }
@@ -208,7 +287,7 @@ if (!process.env.VERCEL && !process.env.LAMBDA_TASK_ROOT) {
 export { app };
 export default app;
 
-process.on('SIGINT', () => {
-  logger.info('Exit.');
+process.on("SIGINT", () => {
+  logger.info("Exit.");
   process.exit();
 });
