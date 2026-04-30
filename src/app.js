@@ -39,8 +39,8 @@ async function getOrder(orderName) {
     const res = await axios.post(
       `https://${shopifyInstance}/admin/api/${shopifyApiVersion}/graphql.json`,
       {
-        query: `{
-          orders(first: 1, query: "name:${orderName}") {
+        query: `query getOrder($query: String!) {
+          orders(first: 1, query: $query) {
             edges {
               node {
                 note
@@ -49,6 +49,7 @@ async function getOrder(orderName) {
             }
           }
         }`,
+        variables: { query: `name:${orderName}` },
       },
       { headers: { "X-Shopify-Access-Token": shopifyApiKey, "Content-Type": "application/json" } },
     );
