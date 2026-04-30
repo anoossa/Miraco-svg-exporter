@@ -1,7 +1,14 @@
 {
   "version": 2,
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "src/**/*.svg"
+    }
+  },
   "rewrites": [
     { "source": "/download-notecard", "destination": "/api/index.js" },
-    { "source": "/request-notecard", "destination": "/api/index.js" }
+    { "source": "/request-notecard", "destination": "/api/index.js" },
+    { "source": "/auth", "destination": "/api/index.js" },
+    { "source": "/auth/callback", "destination": "/api/index.js" }
   ]
 }
