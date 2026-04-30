@@ -36,14 +36,26 @@ app.use(express.static(path.join(__dirname, "../public")));
 
 async function getOrder(orderName) {
   try {
-    const res = await axios.get(
-      `https://${shopifyInstance}.myshopify.com/admin/api/${shopifyApiVersion}/orders.json?name=${orderName}&status=any`,
-      { headers: { "X-Shopify-Access-Token": shopifyApiKey } },
+    const res = await axios.post(
+      `https://${shopifyInstance}/admin/api/${shopifyApiVersion}/graphql.json`,
+      {
+        query: `{
+          orders(first: 1, query: "name:${orderName}") {
+            edges {
+              node {
+                note
+                name
+              }
+            }
+          }
+        }`,
+      },
+      { headers: { "X-Shopify-Access-Token": shopifyApiKey, "Content-Type": "application/json" } },
     );
 
-    console.log(res);
-    if (res?.data?.orders?.length && res.data.orders[0]["note"]) {
-      return JSON.parse(res.data.orders[0]["note"]);
+    const order = res?.data?.data?.orders?.edges?.[0]?.node;
+    if (order?.note) {
+      return JSON.parse(order.note);
     }
     return false;
   } catch (error) {
@@ -129,7 +141,7 @@ async function getOrderMessageContent(orderName) {
 // ── Shopify OAuth (run once to get access token) ──────────────────────────────
 
 app.get("/auth", (req, res) => {
-  const shop = req.query.shop || `${shopifyInstance}.myshopify.com`;
+  const shop = req.query.shop || shopifyInstance;
   const redirectUri = `${req.protocol}://${req.get("host")}/auth/callback`;
   const scopes = "read_orders";
   const state = crypto.randomBytes(16).toString("hex");
